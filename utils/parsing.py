@@ -1,7 +1,7 @@
 import vk_api
 import time
 from aiogram.types import InputMediaPhoto
-from aiogram import Bot
+from aiogram import Bot, flags
 
 from config import VK_KEY, TG_MAIN, TG_TRASH
 from utils.ai import send_ai_request
@@ -49,15 +49,23 @@ async def get_posts(bot: Bot):
             print('\tКол-во полученных сейчас постов:', len(posts))
             for post in posts:
                 # await bot.send_chat_action(chat_id=TG_CHAT, action="typing")
-                # answer = None
-                print('\tЖду ответ от нейронки...')
-                # while not answer:
-                answer = await send_ai_request(post['text'])
-                print('\tПолучил ответ от нейронки!')
+                answer = None
 
-                # chat_id = TG_MAIN if '🟢' in answer else TG_TRASH
-                # print('TG_MAIN' if '🟢' in answer else 'TG_TRASH')
-                # print(chat_id)
+                def find_str(text: str, strings: list) -> bool:
+                    text = text.lower()
+                    for string in strings:
+                        if string in text:
+                            return True
+                    return False
+
+                while not answer:
+                    if find_str(post['text'], ['сниму', 'снимем', 'снимет', 'продам', 'продаю', 'продаём']):
+                        print('\tХуйня. Продаёт или хочет снять.')
+                        write_id(group, post['id'])
+                        return
+                    print('\tЖду ответ от нейронки...')
+                    answer = await send_ai_request(post['text'])
+                print('\tПолучил ответ от нейронки!')
 
                 link = f'https://vk.com/club{group}?w=wall-{group}'
                 caption = f'{answer}\n\n{link}_{post['id']}'
@@ -79,15 +87,15 @@ async def get_posts(bot: Bot):
                 else:
                     await bot.send_message(chat_id=chat_id, text=caption)
 
-                # write_id(group, post['id'])
+                write_id(group, post['id'])
 
             write_id(group, first_post['id'])
 
     except Exception as e:
         print(f"\tОшибка в функции: {e}\n")
-        
+
 
 async def parse(bot):
     while True:
         await get_posts(bot)
-        time.sleep(10)
+        time.sleep(60)
