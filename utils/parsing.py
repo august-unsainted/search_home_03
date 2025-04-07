@@ -97,9 +97,9 @@ async def get_posts(bot: Bot):
                             i = 1
 
                         if len(caption) > 1024:
-                            captions = caption.split('\n\n')
-                            caption = '\n\n'.join(captions[:-1])
-                            caption_continue = captions[-1]
+                            captions = caption.split('\n\n<blockquote')
+                            caption = captions[0]
+                            caption_continue = '<blockquote' + captions[-1]
 
                         media_group.append(
                                 InputMediaPhoto(media=media['photo']['orig_photo']['url'], caption=caption,
