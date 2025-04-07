@@ -12,9 +12,18 @@ def get_json() -> dict:
         return json.load(file)
 
 
-def write_id(group: int | str, post_id: int) -> None:
+def write_info(group: int | str, post_id: int = None) -> None:
     data = get_json()
     with open(path, 'w') as file:
         data[str(group)] = post_id
+        json.dump(data, file, indent=4)
+        return
+
+
+def del_group(group: int | str) -> None:
+    data = get_json()
+    with open(path, 'w') as file:
+        del data[str(group)]
+        # data[str(group)] = post_id
         json.dump(data, file, indent=4)
         return
