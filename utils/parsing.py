@@ -13,6 +13,7 @@ vk_session.auth(token_only=True)
 vk = vk_session.get_api()
 
 SLEEP_TIME = 60
+FILTERS = get_json('filters')
 
 
 def find_str(text: str, strings: list) -> bool:
@@ -21,6 +22,13 @@ def find_str(text: str, strings: list) -> bool:
         if string in text:
             return True
     return False
+
+
+def skip_message(group: str, post: dict) -> None:
+    logger.info('\t\tНе проходит blacklist: репост, бан, продажа или поиск жилья.')
+    write_info(group, post['id'])
+    logger.info('\t\tСохранил ID этого поста. Готово!')
+    logger.info(' ')
 
 
 async def receive_last_posts(last_post: dict, group: str) -> list:
@@ -64,25 +72,37 @@ async def get_posts(bot: Bot):
 
             posts = await receive_last_posts(first_post, group)
             for post in posts:
+                orig_text = post['text']
                 answer = None
                 while not answer:
                     logger.info('\t\t==========[ВЫШЕЛ НОВЫЙ ПОСТ]==========')
-                    if find_str(post['text'], ['сниму', 'снимем', 'снимет', 'продам', 'продаю', 'продаём']):
-                        logger.info('\t\tНе проходит blacklist: продажа или поиск жилья.')
-                        write_info(group, post['id'])
-                        logger.info('\t\tСохранил ID этого поста. Готово!')
-                        logger.info(' ')
-                        return
+                    if find_str(orig_text, FILTERS['blacklist']) or post['from_id'] in FILTERS['ban'] or orig_text == '':
+                        skip_message(group, post)
+                        break
                     logger.info('\t\tТекст поста отправляется AI, ожидаю ответа...')
-                    answer = await send_ai_request(post['text'])
-                logger.info('\t\tОтвет от AI был получен.')
+                    answer = await send_ai_request(orig_text)
+                    # answer = '111'
 
-                chat_id = TG_MAIN if '🟢' in answer else TG_TRASH
+                if not answer:
+                    continue
+
+                logger.info('\t\tОтвет от AI был получен.')
+                price = int(''.join([symbol for symbol in answer.split('┃')[1] if symbol.isdigit()]))
+                if price > FILTERS['price']:
+                    skip_message(group, post)
+                    continue
+
+                chat_id = TG_MAIN if find_str(answer, ['🟢', '🟠']) or find_str(orig_text, FILTERS['whitelist']) else TG_TRASH
                 await bot.send_chat_action(chat_id=chat_id, action="typing")
 
                 link = f'https://vk.com/club{group}?w=wall-{group}'
-                orig_text = post['text']
-                caption = f'{answer}\n\n{link}_{post['id']}\n\n<blockquote expandable>{orig_text}</blockquote>'
+
+                group_name = vk.groups.getById(group_id=group)[0]['name']
+                caption = (f'<b>{group_name} | Group ID: <code>{group}</code></b>\n\n'  
+                           f'{answer}\n\n'
+                           f'—————————\n\n'
+                           f'User ID: <code>{post['from_id'] if post['from_id'] > 0 else "Нет"}</code> | <a href="{link}_{post['id']}">Перейти к объявлению</a>\n\n'
+                           f'<blockquote expandable>{orig_text}</blockquote>')
                 attachments = post['attachments']
                 media_group = []
 
@@ -102,8 +122,8 @@ async def get_posts(bot: Bot):
                             caption_continue = '<blockquote' + captions[-1]
 
                         media_group.append(
-                                InputMediaPhoto(media=media['photo']['orig_photo']['url'], caption=caption,
-                                                parse_mode='HTML'))
+                            InputMediaPhoto(media=media['photo']['orig_photo']['url'], caption=caption,
+                                            parse_mode='HTML'))
                 if media_group:
                     await bot.send_media_group(chat_id=chat_id, media=media_group)
                     if caption_continue:
@@ -114,7 +134,7 @@ async def get_posts(bot: Bot):
                 write_info(group, post['id'])
                 logger.info('\t\tСохранил ID этого поста. Готово!')
                 logger.info(' ')
-            #write_info(group, first_post['id'])
+            # write_info(group, first_post['id'])
         logger.info(f'Все группы проверены. Проверю снова через {SLEEP_TIME} сек. Сплю :)')
         logger.info('======================[КОНЕЦ ПРОВЕРКИ]======================')
         logger.info(' ')
@@ -145,3 +165,9 @@ async def get_group_list() -> str:
          f"Название: {group['name']}\n"
          f"Ссылка: https://vk.com/{group['screen_name']}\n\n" for group in
          groups_objs])
+
+
+async def get_ban_list() -> str:
+    data = get_json('filters')['ban']
+    users = vk.users.get(user_ids=str(data)[1:-1])
+    return '\n'.join([f'{data[i]} | {users[i]['first_name']} {users[i]['last_name']}' for i in range(len(users))])
