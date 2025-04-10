@@ -1,5 +1,9 @@
+import datetime
+import pytz
 import vk_api
 import asyncio
+import locale
+
 from aiogram.types import InputMediaPhoto
 from aiogram import Bot
 
@@ -14,6 +18,8 @@ vk = vk_session.get_api()
 
 SLEEP_TIME = 60
 FILTERS = get_json('filters')
+
+locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 
 
 def find_str(text: str, strings: list) -> bool:
@@ -49,7 +55,6 @@ async def receive_last_posts(last_post: dict, group: str) -> list:
 
 
 async def get_posts(bot: Bot):
-    # global LAST_POST_ID
     try:
         logger.info('==================[НАЧАЛО НОВОЙ ПРОВЕРКИ]===================')
         for group, last_post in get_json().items():
@@ -57,6 +62,7 @@ async def get_posts(bot: Bot):
             response = vk.wall.get(domain="club" + group, offset=0, count=1)
             if "error" in response:
                 logger.error(f"\t\tОшибка в запросе: {response['error']['error_msg']}.")
+                await bot.send_message(chat_id=TG_TRASH, text=response['error']['error_msg'])
                 return
 
             first_post = response["items"][0]
@@ -73,32 +79,37 @@ async def get_posts(bot: Bot):
             posts = await receive_last_posts(first_post, group)
             for post in posts:
                 orig_text = post['text']
-                answer = None
-                while not answer:
-                    logger.info('\t\t==========[ВЫШЕЛ НОВЫЙ ПОСТ]==========')
-                    if find_str(orig_text, FILTERS['blacklist']) or post['from_id'] in FILTERS['ban'] or orig_text == '':
-                        skip_message(group, post)
-                        break
-                    logger.info('\t\tТекст поста отправляется AI, ожидаю ответа...')
-                    answer = await send_ai_request(orig_text)
-                    # answer = '111'
-
-                if not answer:
+                logger.info('\t\t==========[ВЫШЕЛ НОВЫЙ ПОСТ]==========')
+                if find_str(orig_text, FILTERS['blacklist']) or post['from_id'] in FILTERS['ban'] or orig_text == '':
+                    skip_message(group, post)
+                    await bot.send_message(chat_id=TG_TRASH,
+                                           text=(
+                                               f'Пост не проходит blacklist: репост, бан, продажа или поиск жилья\n'
+                                               f'Ссылка: https://vk.com/club{group}?w=wall-{group}_{post["id"]}'))
                     continue
+                logger.info('\t\tТекст поста отправляется AI, ожидаю ответа...')
+                answer = await send_ai_request(orig_text)
 
                 logger.info('\t\tОтвет от AI был получен.')
                 price = int(''.join([symbol for symbol in answer.split('┃')[1] if symbol.isdigit()]))
                 if price > FILTERS['price']:
                     skip_message(group, post)
+                    await bot.send_message(chat_id=TG_TRASH,
+                                           text=(f'Пост не проходит blacklist: репост, бан, продажа или поиск жилья\n'
+                                                 f'Ссылка: https://vk.com/club{group}?w=wall-{group}_{post["id"]}'))
                     continue
 
-                chat_id = TG_MAIN if find_str(answer, ['🟢', '🟠']) or find_str(orig_text, FILTERS['whitelist']) else TG_TRASH
+                chat_id = TG_MAIN if find_str(answer, ['🟢', '🟠']) or find_str(orig_text,
+                                                                              FILTERS['whitelist']) else TG_TRASH
                 await bot.send_chat_action(chat_id=chat_id, action="typing")
 
                 link = f'https://vk.com/club{group}?w=wall-{group}'
 
                 group_name = vk.groups.getById(group_id=group)[0]['name']
-                caption = (f'<b>{group_name} | Group ID: <code>{group}</code></b>\n\n'  
+                local_tz = pytz.timezone('Asia/Irkutsk')
+                date = datetime.datetime.fromtimestamp(float(post['date']), local_tz)
+                caption = (f'{date.strftime("%d %B в %H:%M")}\n'
+                           f'<b>{group_name} | Group ID: <code>{group}</code></b>\n\n'
                            f'{answer}\n\n'
                            f'—————————\n\n'
                            f'User ID: <code>{post['from_id'] if post['from_id'] > 0 else "Нет"}</code> | <a href="{link}_{post['id']}">Перейти к объявлению</a>\n\n'
@@ -134,13 +145,15 @@ async def get_posts(bot: Bot):
                 write_info(group, post['id'])
                 logger.info('\t\tСохранил ID этого поста. Готово!')
                 logger.info(' ')
-            # write_info(group, first_post['id'])
+            write_info(group, first_post['id'])
         logger.info(f'Все группы проверены. Проверю снова через {SLEEP_TIME} сек. Сплю :)')
         logger.info('======================[КОНЕЦ ПРОВЕРКИ]======================')
         logger.info(' ')
         logger.info(' ')
     except Exception as e:
-        logger.error(f"\t\tОшибка в функции: {e}.\n")
+        error = f"\t\tОшибка в функции: {e}.\n"
+        logger.error(error)
+        await bot.send_message(chat_id=TG_TRASH, text=error)
 
 
 async def parse(bot):
