@@ -97,7 +97,7 @@ async def get_posts(bot: Bot):
                     await bot.send_message(chat_id=TG_TRASH,
                                            text=(f'Пост не проходит blacklist: репост, бан, продажа или поиск жилья\n\n'
                                                  f'<blockquote expandable>{orig_text}</blockquote>\n\n'
-                                                 f'</code> | <a href="https://vk.com/club{group}?w=wall-{group}_{post["id"]}">Перейти к объявлению</a>'),
+                                                 f'<a href="https://vk.com/club{group}?w=wall-{group}_{post["id"]}">Перейти к объявлению</a>'),
                                            parse_mode='HTML')
                     continue
 
