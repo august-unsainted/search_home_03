@@ -3,4 +3,4 @@ __pycache__
 .idea
 config.py
 logging.log
-*.json
+utils/vk_config.v2.json
