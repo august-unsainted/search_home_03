@@ -16,25 +16,33 @@ vk_session = vk_api.VkApi(login=VK_LOGIN, password=VK_PASS)
 vk_session.auth(token_only=True)
 vk = vk_session.get_api()
 
-SLEEP_TIME = 60
+SLEEP_TIME = 120
 FILTERS = get_json('filters')
 
 locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
+local_tz = pytz.timezone('Asia/Irkutsk')
 
 
-def find_str(text: str, strings: list) -> bool:
+def find_str(text: str, strings: list) -> str:
     text = text.lower()
     for string in strings:
         if string in text:
-            return True
-    return False
+            return string
+    return ''
 
 
-def skip_message(group: str, post: dict) -> None:
-    logger.info('\t\tНе проходит blacklist: репост, бан, продажа или поиск жилья.')
+async def skip_message(group: str, post: dict, bot: Bot, reason: str) -> None:
+    logger.info('\t\t' + reason)
     write_info(group, post['id'])
     logger.info('\t\tСохранил ID этого поста. Готово!')
     logger.info(' ')
+    date = datetime.datetime.fromtimestamp(float(post['date']), local_tz).strftime("%d %B в %H:%M")
+    await bot.send_message(chat_id=TG_TRASH,
+                           text=(f'{date}\n\n'
+                                 f'{reason}\n\n'
+                                 f'<blockquote expandable>{post['text']}</blockquote>\n\n'
+                                 f'<a href="https://vk.com/club{group}?w=wall-{group}_{post["id"]}">Перейти к объявлению</a>'),
+                           parse_mode='HTML')
 
 
 async def receive_last_posts(last_post: dict, group: str) -> list:
@@ -51,6 +59,7 @@ async def receive_last_posts(last_post: dict, group: str) -> list:
         return []
     else:
         logger.info(f'\t\t{str(count).ljust(9, " ")} — кол-во новых постов.')
+        logger.info(" ")
         return vk.wall.get(domain="club" + group, offset=0, count=count)['items']
 
 
@@ -80,25 +89,25 @@ async def get_posts(bot: Bot):
             for post in posts:
                 orig_text = post['text']
                 logger.info('\t\t==========[ВЫШЕЛ НОВЫЙ ПОСТ]==========')
-                if find_str(orig_text, FILTERS['blacklist']) or post['from_id'] in FILTERS['ban'] or orig_text == '':
-                    skip_message(group, post)
-                    await bot.send_message(chat_id=TG_TRASH,
-                                           text=(
-                                               f'Пост не проходит blacklist: репост, бан, продажа или поиск жилья\n'
-                                               f'Ссылка: https://vk.com/club{group}?w=wall-{group}_{post["id"]}'))
+                blacklist = find_str(orig_text, FILTERS['blacklist'])
+                ban_user = post['from_id'] in FILTERS['ban']
+                if blacklist or ban_user or orig_text == '':
+                    if blacklist:
+                        reason = f'Blacklist: «{blacklist}».'
+                    elif ban_user:
+                        reason = f'Blacklist: пользователь с ID {post['from_id']} в бане.'
+                    else:
+                        reason = 'Blacklist: репост.'
+                    await skip_message(group, post, bot, reason)
                     continue
+
                 logger.info('\t\tТекст поста отправляется AI, ожидаю ответа...')
                 answer = await send_ai_request(orig_text)
-
                 logger.info('\t\tОтвет от AI был получен.')
                 price = int(''.join([symbol for symbol in answer.split('┃')[1] if symbol.isdigit()]))
+
                 if price > FILTERS['price']:
-                    skip_message(group, post)
-                    await bot.send_message(chat_id=TG_TRASH,
-                                           text=(f'Пост не проходит blacklist: репост, бан, продажа или поиск жилья\n\n'
-                                                 f'<blockquote expandable>{orig_text}</blockquote>\n\n'
-                                                 f'<a href="https://vk.com/club{group}?w=wall-{group}_{post["id"]}">Перейти к объявлению</a>'),
-                                           parse_mode='HTML')
+                    await skip_message(group, post, bot, f'Blacklist: превышает бюджет ({price} > {FILTERS["price"]}).')
                     continue
 
                 chat_id = TG_MAIN if find_str(answer, ['🟢', '🟠']) or find_str(orig_text,
@@ -108,9 +117,10 @@ async def get_posts(bot: Bot):
                 link = f'https://vk.com/club{group}?w=wall-{group}'
 
                 group_name = vk.groups.getById(group_id=group)[0]['name']
-                local_tz = pytz.timezone('Asia/Irkutsk')
-                date = datetime.datetime.fromtimestamp(float(post['date']), local_tz)
-                caption = (f'{date.strftime("%d %B в %H:%M")}\n'
+
+                date = datetime.datetime.fromtimestamp(float(post['date']), local_tz).strftime("%d %B в %H:%M")
+
+                caption = (f'{date}\n'
                            f'<b>{group_name} | Group ID: <code>{group}</code></b>\n\n'
                            f'{answer}\n\n'
                            f'—————————\n\n'
@@ -185,4 +195,7 @@ async def get_group_list() -> str:
 async def get_ban_list() -> str:
     data = get_json('filters')['ban']
     users = vk.users.get(user_ids=str(data)[1:-1])
-    return '\n'.join([f'{data[i]} | {users[i]['first_name']} {users[i]['last_name']}' for i in range(len(users))])
+    banlist = [f'<b>⛔️ Заблокированные пользователи</b>']
+    for i in range(len(users)):
+        banlist.append(f'{str(i + 1).rjust(2, "0")} | <code>{str(data[i]).ljust(9,' ')}</code> | {users[i]['first_name']} {users[i]['last_name']}')
+    return '\n'.join(banlist)
