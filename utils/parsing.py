@@ -179,13 +179,9 @@ def get_group_id(link: str) -> int:
     return int(link)
 
 
-async def get_group_list() -> str:
+def get_groups() -> list:
     groups = ', '.join(get_json().keys())
-    groups_objs = vk.groups.getById(group_ids=groups)
-    answer = ['📌 <b>Отслеживаемые сообщества:</b>']
-    for group in groups_objs:
-        answer.append(f"— <code>{str(group['id']).ljust(9, ' ')}</code> | <a href='https://vk.com/{group['screen_name']}'>{group['name']}</a>")
-    return '\n'.join(answer)
+    return vk.groups.getById(group_ids=groups)
 
 
 def get_users(data: list) -> list:

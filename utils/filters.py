@@ -1,7 +1,7 @@
 import json
 
 from utils.file_system import get_json, filters_path, write_info, del_group
-from utils.parsing import get_users, get_group_id
+from utils.parsing import get_users, get_group_id, get_groups
 
 filters = {
     '': ['📌', 'Отслеживаемые сообщества', 'Группа', 'отслеживаемых'],
@@ -45,7 +45,7 @@ def filters_actions(command: str) -> str:
     need_to_del = command.startswith(('/un', '/del'))
     words = command.replace('  ', ' ').split(' ')
     command, elements = words[0], words[1:]
-    filters_list = replace_many(command, ['/', 'un', 'add', 'del'])
+    filters_list = replace_many(command, ['/', 'un', 'add', 'del', '@SearchHome03_Bot'])
 
     emoji, title, obj, declination = filters[filters_list]
 
@@ -73,22 +73,25 @@ def filters_actions(command: str) -> str:
     if data and filters_list:
         with open(filters_path, 'w', encoding='utf-8') as file:
             json.dump(data, file, indent=4, ensure_ascii=False)
-    return answer
+    return f'{answer}\n\nПосмотреть список: /list{filters_list}'
 
 
 def get_filters_list(message: str) -> str:
-    filters_list = message[1:].replace('list', '')
+    filters_list = replace_many(message[1:], ['list', '@SearchHome03_Bot'])
     emoji, title, obj = filters[filters_list][:3]
-    data = get_json('filters')[filters_list] if filters_list else get_json()
+    data = get_json('filters')[filters_list] if filters_list else get_groups()
     ban = filters_list == "ban"
     answer = [f'<b>{emoji} {title} {obj.lower().replace('тель', 'тели').replace('слово', 'слова')}:</b>']
     if ban:
         users = get_users(data)
     for i in range(len(data)):
-        data[i] = str(data[i]).ljust(9, ' ')
-        element = f"— <code>{data[i]}</code>"
+        not_formatted_str = data[i] if filters_list else data[i]['id']
+        formatted_str = str(not_formatted_str).ljust(9, ' ')
+        element = f"— <code>{formatted_str}</code>"
         if ban:
             element += f" | {users[i]['first_name']} {users[i]['last_name']}"
+        elif not filters_list:
+            element += f" | <a href='https://vk.com/{data[i]['screen_name']}'>{data[i]['name']}</a>"
         answer.append(element)
     if len(answer) == 1:
         return f'{answer[0]}\n— список пуст 😇'
