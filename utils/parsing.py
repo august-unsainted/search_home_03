@@ -16,23 +16,19 @@ vk_session = vk_api.VkApi(login=VK_LOGIN, password=VK_PASS)
 vk_session.auth(token_only=True)
 vk = vk_session.get_api()
 
-SLEEP_TIME = 120
-FILTERS = get_json('filters')
-
 locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 local_tz = pytz.timezone('Asia/Irkutsk')
 
 
 def find_str(text: str, strings: list) -> str:
-    text = text.lower()
     for string in strings:
-        if string in text:
+        if string.lower() in text.lower():
             return string
     return ''
 
 
 async def skip_message(group: str, post: dict, bot: Bot, reason: str) -> None:
-    logger.info('\t\t' + reason)
+    logger.info('\t\t' + reason[reason.find(' ') + 1:])
     write_info(group, post['id'])
     logger.info('\t\tСохранил ID этого поста. Готово!')
     logger.info(' ')
@@ -64,6 +60,7 @@ async def receive_last_posts(last_post: dict, group: str) -> list:
 
 
 async def get_posts(bot: Bot):
+    FILTERS = get_json('filters')
     try:
         logger.info('==================[НАЧАЛО НОВОЙ ПРОВЕРКИ]===================')
         for group, last_post in get_json().items():
@@ -89,15 +86,15 @@ async def get_posts(bot: Bot):
             for post in posts:
                 orig_text = post['text']
                 logger.info('\t\t==========[ВЫШЕЛ НОВЫЙ ПОСТ]==========')
-                blacklist = find_str(orig_text, FILTERS['blacklist'])
+                blacklist = find_str(orig_text, FILTERS['bw'])
                 ban_user = post['from_id'] in FILTERS['ban']
                 if blacklist or ban_user or orig_text == '':
                     if blacklist:
-                        reason = f'Blacklist: «{blacklist}».'
+                        reason = f'🚫 Запрещенное слово «{blacklist}».'
                     elif ban_user:
-                        reason = f'Blacklist: пользователь с ID {post['from_id']} в бане.'
+                        reason = f'⛔️ Пользователь с ID {post['from_id']} в бане.'
                     else:
-                        reason = 'Blacklist: репост.'
+                        reason = '📣 Репост.'
                     await skip_message(group, post, bot, reason)
                     continue
 
@@ -107,11 +104,11 @@ async def get_posts(bot: Bot):
                 price = int(''.join([symbol for symbol in answer.split('┃')[1] if symbol.isdigit()]))
 
                 if price > FILTERS['price']:
-                    await skip_message(group, post, bot, f'Blacklist: превышает бюджет ({price} > {FILTERS["price"]}).')
+                    await skip_message(group, post, bot, f'💰 Превышает бюджет: {price} > {FILTERS["price"]}.')
                     continue
 
                 chat_id = TG_MAIN if find_str(answer, ['🟢', '🟠']) or find_str(orig_text,
-                                                                              FILTERS['whitelist']) else TG_TRASH
+                                                                              FILTERS['lw']) else TG_TRASH
                 await bot.send_chat_action(chat_id=chat_id, action="typing")
 
                 link = f'https://vk.com/club{group}?w=wall-{group}'
@@ -158,7 +155,7 @@ async def get_posts(bot: Bot):
                 logger.info('\t\tСохранил ID этого поста. Готово!')
                 logger.info(' ')
             write_info(group, first_post['id'])
-        logger.info(f'Все группы проверены. Проверю снова через {SLEEP_TIME} сек. Сплю :)')
+        logger.info(f'Все группы проверены. Проверю снова через {get_json("filters")['sleep']} сек. Сплю :)')
         logger.info('======================[КОНЕЦ ПРОВЕРКИ]======================')
         logger.info(' ')
         logger.info(' ')
@@ -171,10 +168,10 @@ async def get_posts(bot: Bot):
 async def parse(bot):
     while True:
         await get_posts(bot)
-        await asyncio.sleep(SLEEP_TIME)
+        await asyncio.sleep(get_json("filters")['sleep'])
 
 
-async def get_group_id(link: str) -> int:
+def get_group_id(link: str) -> int:
     if 'https' in link:
         domain = link.replace('https://vk.com/', '').split('?')[0]
         group = vk.groups.getById(group_id=domain)
@@ -185,17 +182,11 @@ async def get_group_id(link: str) -> int:
 async def get_group_list() -> str:
     groups = ', '.join(get_json().keys())
     groups_objs = vk.groups.getById(group_ids=groups)
-    return 'Отслеживаемые сообщества:\n\n' + ''.join(
-        [f"ID: {group['id']}\n"
-         f"Название: {group['name']}\n"
-         f"Ссылка: https://vk.com/{group['screen_name']}\n\n" for group in
-         groups_objs])
+    answer = ['📌 <b>Отслеживаемые сообщества:</b>']
+    for group in groups_objs:
+        answer.append(f"— <code>{str(group['id']).ljust(9, ' ')}</code> | <a href='https://vk.com/{group['screen_name']}'>{group['name']}</a>")
+    return '\n'.join(answer)
 
 
-async def get_ban_list() -> str:
-    data = get_json('filters')['ban']
-    users = vk.users.get(user_ids=str(data)[1:-1])
-    banlist = [f'<b>⛔️ Заблокированные пользователи</b>']
-    for i in range(len(users)):
-        banlist.append(f'{str(i + 1).rjust(2, "0")} | <code>{str(data[i]).ljust(9,' ')}</code> | {users[i]['first_name']} {users[i]['last_name']}')
-    return '\n'.join(banlist)
+def get_users(data: list) -> list:
+    return vk.users.get(user_ids=str(data)[1:-1])
