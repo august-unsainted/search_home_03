@@ -1,7 +1,7 @@
 import json
 
 from utils.file_system import get_json, filters_path, write_info, del_group
-from utils.parsing import get_users, get_group_id, get_groups
+from utils.parsing import get_users, get_group_id, get_groups, justify
 
 filters = {
     '': ['📌', 'Отслеживаемые', 'Группа'],
@@ -89,7 +89,7 @@ def get_filters_list(message: str) -> str:
         users = get_users(data)
 
     for i in range(len(data)):
-        formatted_el = str(data[i] if filters_list else data[i]['id']).ljust(9, ' ')
+        formatted_el = justify(data[i] if filters_list else data[i]['id'])
         element = f"— <code>{formatted_el}</code>"
         if filters_list == "ban":
             element += f" | {users[i]['first_name']} {users[i]['last_name']}"
