@@ -27,9 +27,9 @@ def find_str(text: str, strings: list) -> str:
     return ''
 
 
-def log(text: str, indent: bool = True) -> None:
+def log(text: str) -> None:
     logger.info('\t\t' + text)
-    if indent:
+    if '\n' in text:
         logger.info('')
         
         
@@ -38,13 +38,14 @@ def justify(data: int | str) -> str:
 
 
 async def skip_message(group: str, post: dict, bot: Bot, reason: str) -> None:
-    log(reason[reason.find(' ') + 1:], False)
+    log(reason[reason.find(' ') + 1:])
     write_info(group, post['id'])
-    log('Сохранил ID этого поста. Готово!')
+    log('Сохранил ID этого поста. Готово!\n')
     date = datetime.datetime.fromtimestamp(float(post['date']), local_tz).strftime("%d %B в %H:%M")
     await bot.send_message(
         chat_id=TG_TRASH,
-        text=(f'{date}\n\n{reason}\n\n'
+        text=(f'ID группы: <code>{group}</code>\n\n'
+              f'{date}\n\n{reason}\n\n'
               f'<blockquote expandable>{post['text']}</blockquote>{"\n\n" if post["text"] else ""}'
               f'<a href="https://vk.com/club{group}?w=wall-{group}_{post["id"]}">Перейти к объявлению</a>'),
         parse_mode='HTML', disable_web_page_preview=True)
@@ -52,14 +53,19 @@ async def skip_message(group: str, post: dict, bot: Bot, reason: str) -> None:
 
 async def receive_last_posts(last_post: dict, group: str) -> list:
     last_data = get_json()[str(group)]
-    logger.info(f'\t\t{justify(last_data)} — сохранённое ID последнего поста.')
+    log(f'{justify(last_data)} — сохранённое ID последнего поста.')
     count = last_post['id'] - last_data
 
-    if count:
-        log('Новых постов нет. Перехожу к проверке следующей группы.')
+    if count <= 0:
+        if count == 0:
+            write_info(group, last_post["id"])
+            info = 'Сохранил ID последнего поста.'
+        else:
+            info = 'Новых постов нет. Перехожу к проверке следующей группы.'
+        log(info + '\n')
         return []
     else:
-        log(justify(count) + ' — кол-во новых постов.')
+        log(justify(count) + ' — кол-во новых постов.\n')
         return vk.wall.get(domain="club" + group, offset=0, count=count)['items'][::-1]
 
 
@@ -71,25 +77,25 @@ async def get_posts(bot: Bot):
             logger.info('Проверяю последние посты в группе:')
             response = vk.wall.get(domain="club" + group, offset=0, count=1)
             if "error" in response:
-                logger.error(f"\t\tОшибка в запросе: {response['error']['error_msg']}.")
-                await bot.send_message(chat_id=TG_TRASH, text=response['error']['error_msg'])
+                error = response['error']['error_msg']
+                logger.error(f"\t\tОшибка в запросе: {error}.")
+                await bot.send_message(chat_id=TG_TRASH, text=error)
                 return
 
             first_post = response["items"][0]
-            logger.info(f'\t\t{justify(group)} — ID группы.')
-            logger.info(f'\t\t{justify(first_post["id"])} — ID последнего поста.')
+            log(f'{justify(group)} — ID группы.')
+            log(f'{justify(first_post["id"])} — ID последнего поста.')
 
             if last_post is None:
-                logger.info('\t\t============[НОВАЯ ГРУППА]============')
+                log('============[НОВАЯ ГРУППА]============')
                 write_info(group, first_post["id"])
-                logger.info('\t\tСохранил ID последнего поста.')
-                logger.info(' ')
+                log('Сохранил ID последнего поста.')
                 continue
 
             posts = await receive_last_posts(first_post, group)
             for post in posts:
                 orig_text = post['text']
-                log('==========[ВЫШЕЛ НОВЫЙ ПОСТ]==========', False)
+                log('==========[ВЫШЕЛ НОВЫЙ ПОСТ]==========')
                 blacklist = find_str(orig_text, filters['bw'])
                 ban_user = post['from_id'] in filters['ban']
                 if blacklist or ban_user or orig_text == '':
@@ -102,17 +108,18 @@ async def get_posts(bot: Bot):
                     await skip_message(group, post, bot, reason)
                     continue
 
-                log('Текст поста отправляется AI, ожидаю ответа...', False)
+                log('Текст поста отправляется AI, ожидаю ответа...')
                 answer = await send_ai_request(orig_text)
-                log('Ответ от AI был получен.', False)
+                log('Ответ от AI был получен.')
                 price = int(''.join([symbol for symbol in answer.split('┃')[1] if symbol.isdigit()]))
                 tag = answer.split('│')[1].lower()
 
-                if price > filters['price']:
-                    await skip_message(group, post, bot, f'💰 Превышает бюджет: {price} > {filters["price"]}.')
-                    continue
-                elif tag == 'другое':
-                    await skip_message(group, post, bot, f'🗑 Не является объявлением о сдаче квартиры/комнаты.')
+                if price > filters['price'] or tag == 'другое':
+                    await skip_message(
+                        group, post, bot,
+                        f'🗑 Не является объявлением о сдаче квартиры/комнаты.'
+                        if tag == 'другое' else f'💰 Превышает бюджет: {price} > {filters["price"]}.'
+                    )
                     continue
 
                 chat_id = TG_MAIN if find_str(answer, ['🟢', '🟠']) or find_str(orig_text,
@@ -158,11 +165,11 @@ async def get_posts(bot: Bot):
                         await bot.send_message(chat_id=chat_id, text=caption_continue, parse_mode='HTML')
                 else:
                     await bot.send_message(chat_id=chat_id, text=caption, parse_mode='HTML')
-                log('Отправил готовое сообщение в Telegram.', False)
+                log('Отправил готовое сообщение в Telegram.')
                 write_info(group, post['id'])
-                log('Сохранил ID этого поста. Готово!')
+                log('Сохранил ID этого поста. Готово!\n')
             write_info(group, first_post['id'])
-        logger.info(f'Все группы проверены. Проверю снова через {get_json("filters")['sleep']} сек. Сплю :)')
+        logger.info(f'Все группы проверены. Проверю снова через {get_json("filters")['delay']} сек. Сплю :)')
         logger.info('======================[КОНЕЦ ПРОВЕРКИ]======================')
         logger.info(' ')
         logger.info(' ')
@@ -175,7 +182,7 @@ async def get_posts(bot: Bot):
 async def parse(bot):
     while True:
         await get_posts(bot)
-        await asyncio.sleep(get_json("filters")['sleep'])
+        await asyncio.sleep(get_json("filters")['delay'])
 
 
 def get_group_id(link: str) -> int:

@@ -37,8 +37,6 @@ def del_group(group: int | str) -> bool:
 
 
 def test_groups(count: str) -> None:
-    if not count.isdigit():
-        return
     count = int(count)
     data = get_json()
     for group in data:
