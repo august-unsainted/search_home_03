@@ -19,11 +19,10 @@ def write_info(key: int | str, value: int = None, file_path: str = path) -> None
     data = get_json(file_path)
     if file_path == 'filters':
         file_path = filters_path
-    with open(file_path, 'w', encoding='utf-8') as file:
-        data[str(key)] = value
-        if data:
+    data[str(key)] = value
+    if data:
+        with open(file_path, 'w', encoding='utf-8') as file:
             json.dump(data, file, indent=4, ensure_ascii=False)
-        return
 
 
 def del_group(group: int | str) -> bool:

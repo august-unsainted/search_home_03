@@ -4,10 +4,7 @@ from config import API_KEYS, AI_MODEL, AI_PROMPT
 
 async def send_ai_request(text: str) -> str | None:
     for current_key in API_KEYS:
-        client = AsyncOpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=current_key,
-        )
+        client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=current_key)
         for _ in range(2):
             try:
                 completion = await client.chat.completions.create(
