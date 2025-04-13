@@ -8,7 +8,7 @@ from aiogram.types import InputMediaPhoto
 from aiogram import Bot
 
 from config import VK_LOGIN, VK_PASS, TG_MAIN, TG_TRASH
-from utils.logger import logger
+from utils.logger import logger, log
 from utils.ai import send_ai_request
 from utils.file_system import get_json, write_info
 
@@ -25,12 +25,6 @@ def find_str(text: str, strings: list) -> str:
         if string.lower() in text.lower():
             return string
     return ''
-
-
-def log(text: str) -> None:
-    logger.info('\t\t' + text)
-    if '\n' in text:
-        logger.info('')
         
         
 def justify(data: int | str) -> str:
@@ -44,7 +38,7 @@ async def skip_message(group: str, post: dict, bot: Bot, reason: str) -> None:
     date = datetime.datetime.fromtimestamp(float(post['date']), local_tz).strftime("%d %B в %H:%M")
     await bot.send_message(
         chat_id=TG_TRASH,
-        text=(f'ID группы: <code>{group}</code>\n\n'
+        text=(f'📌 ID группы: <code>{group}</code>\n\n'
               f'{date}\n\n{reason}\n\n'
               f'<blockquote expandable>{post['text']}</blockquote>{"\n\n" if post["text"] else ""}'
               f'<a href="https://vk.com/club{group}?w=wall-{group}_{post["id"]}">Перейти к объявлению</a>'),
@@ -55,17 +49,15 @@ async def receive_last_posts(last_post: dict, group: str) -> list:
     last_data = get_json()[str(group)]
     log(f'{justify(last_data)} — сохранённое ID последнего поста.')
     count = last_post['id'] - last_data
-
+    log(justify(count) + ' — кол-во новых постов.')
     if count <= 0:
-        if count == 0:
-            write_info(group, last_post["id"])
-            info = 'Сохранил ID последнего поста.'
-        else:
-            info = 'Новых постов нет. Перехожу к проверке следующей группы.'
-        log(info + '\n')
+        log('Новых постов нет. Перехожу к проверке следующей группы.\n')
+        return []
+    elif count < 0 or count > 100:
+        write_info(group, last_post["id"])
+        log('Ошибка! Перезаписываю ID поста на актуальный.\n')
         return []
     else:
-        log(justify(count) + ' — кол-во новых постов.\n')
         return vk.wall.get(domain="club" + group, offset=0, count=count)['items'][::-1]
 
 
@@ -95,6 +87,7 @@ async def get_posts(bot: Bot):
             posts = await receive_last_posts(first_post, group)
             for post in posts:
                 orig_text = post['text']
+                log('')
                 log('==========[ВЫШЕЛ НОВЫЙ ПОСТ]==========')
                 blacklist = find_str(orig_text, filters['bw'])
                 ban_user = post['from_id'] in filters['ban']

@@ -11,3 +11,9 @@ console_handler.setFormatter(logging.Formatter('%(levelname)s - %(message)s'))
 
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
+
+
+def log(text: str) -> None:
+    logger.info('\t\t' + text.replace('\n', ''))
+    if '\n' in text:
+        logger.info('')
