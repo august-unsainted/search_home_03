@@ -1,9 +1,9 @@
-import datetime
 import pytz
 import vk_api
 import asyncio
 import locale
 
+from datetime import datetime, timedelta
 from aiogram.types import InputMediaPhoto
 from aiogram import Bot
 
@@ -25,31 +25,42 @@ def find_str(text: str, strings: list) -> str:
         if string.lower() in text.lower():
             return string
     return ''
-        
-        
+
+
 def justify(data: int | str) -> str:
-    return str(data).ljust(9, " ")
+    return str(data).ljust(10, " ")
+
+
+def format_date(date: int):
+    now = datetime.now(tz=local_tz)
+    date = datetime.fromtimestamp(float(date), local_tz).strftime("%d %B в %H:%M")
+    for i in range(2):
+        day = (now - timedelta(days=i)).strftime('%d %B')
+        if day in date:
+            date = f'{date.replace(day, 'Сегодня' if i == 0 else 'Завтра')}'
+    return date
 
 
 async def skip_message(group: str, post: dict, bot: Bot, reason: str) -> None:
     log(reason[reason.find(' ') + 1:])
     write_info(group, post['id'])
-    log('Сохранил ID этого поста. Готово!\n')
-    date = datetime.datetime.fromtimestamp(float(post['date']), local_tz).strftime("%d %B в %H:%M")
+    log(f'Сохранил ID этого поста — {post['id']}')
+    user = f'\nUser ID: <code>{post["from_id"]}</code>' if post["from_id"] > 0 else ''
     await bot.send_message(
         chat_id=TG_TRASH,
-        text=(f'📌 ID группы: <code>{group}</code>\n\n'
-              f'{date}\n\n{reason}\n\n'
+        text=(f'📌 В группе <code>{group}</code>\n🕓 {post['date']}\n\n{reason}\n\n'
               f'<blockquote expandable>{post['text']}</blockquote>{"\n\n" if post["text"] else ""}'
-              f'<a href="https://vk.com/club{group}?w=wall-{group}_{post["id"]}">Перейти к объявлению</a>'),
+              f'<a href="https://vk.com/club{group}?w=wall-{group}_{post["id"]}">Перейти к объявлению</a>'
+              f'{user}'),
         parse_mode='HTML', disable_web_page_preview=True)
+    log('Отправил готовое сообщение в Telegram.\n')
 
 
 async def receive_last_posts(last_post: dict, group: str) -> list:
     last_data = get_json()[str(group)]
     log(f'{justify(last_data)} — сохранённое ID последнего поста.')
     count = last_post['id'] - last_data
-    log(justify(count) + ' — кол-во новых постов.')
+
     if count <= 0:
         log('Новых постов нет. Перехожу к проверке следующей группы.\n')
         return []
@@ -58,7 +69,18 @@ async def receive_last_posts(last_post: dict, group: str) -> list:
         log('Ошибка! Перезаписываю ID поста на актуальный.\n')
         return []
     else:
-        return vk.wall.get(domain="club" + group, offset=0, count=count)['items'][::-1]
+        posts = vk.wall.get(domain="club" + group, offset=0, count=count)['items']
+        if len(posts) == 1:
+            log(f'{justify(len(posts))} — кол-во новых постов.')
+            return posts[::-1]
+
+        new_posts = []
+        for post in posts:
+            if post['id'] == last_data:
+                break
+            new_posts.append(post)
+        log(f'{justify(len(new_posts))} — кол-во новых постов.')
+        return new_posts[::-1]
 
 
 async def get_posts(bot: Bot):
@@ -85,17 +107,20 @@ async def get_posts(bot: Bot):
                 continue
 
             posts = await receive_last_posts(first_post, group)
+            if len(posts) == 0:
+                continue
             for post in posts:
                 orig_text = post['text']
-                log('')
+                logger.info('')
                 log('==========[ВЫШЕЛ НОВЫЙ ПОСТ]==========')
+                log(f'{post['id']} — ID нового поста.')
                 blacklist = find_str(orig_text, filters['bw'])
                 ban_user = post['from_id'] in filters['ban']
                 if blacklist or ban_user or orig_text == '':
                     if blacklist:
                         reason = f'🚫 Запрещенное слово «{blacklist}».'
                     elif ban_user:
-                        reason = f'⛔️ Пользователь с ID {post['from_id']} в бане.'
+                        reason = f'⛔️ Пользователь в списке заблокированных.'
                     else:
                         reason = '📣 Репост.'
                     await skip_message(group, post, bot, reason)
@@ -123,13 +148,13 @@ async def get_posts(bot: Bot):
 
                 group_name = vk.groups.getById(group_id=group)[0]['name']
 
-                date = datetime.datetime.fromtimestamp(float(post['date']), local_tz).strftime("%d %B в %H:%M")
+                date = format_date(post['date'])
 
-                caption = (f'{date}\n'
-                           f'<b>{group_name} | Group ID: <code>{group}</code></b>\n\n'
+                caption = (f'📌 <b>{group_name} | ID <code>{group}</code></b>\n'
+                           f'🕓 {date}\n\n'
                            f'{answer}\n\n'
                            f'—————————\n\n'
-                           f'User ID: <code>{post['from_id'] if post['from_id'] > 0 else "Нет"}</code> | <a href="{link}_{post['id']}">Перейти к объявлению</a>\n\n'
+                           f'<a href="{link}_{post['id']}">Перейти к объявлению</a> | User ID: <code>{post['from_id'] if post['from_id'] > 0 else "Нет"}</code>\n\n'
                            f'<blockquote expandable>{orig_text}</blockquote>')
                 attachments = post['attachments']
                 media_group = []
@@ -161,7 +186,8 @@ async def get_posts(bot: Bot):
                 log('Отправил готовое сообщение в Telegram.')
                 write_info(group, post['id'])
                 log('Сохранил ID этого поста. Готово!\n')
-            write_info(group, first_post['id'])
+            # write_info(group, first_post['id'])
+            log('Все посты в группе проверены! Перехожу к следующей...\n')
         logger.info(f'Все группы проверены. Проверю снова через {get_json("filters")['delay']} сек. Сплю :)')
         logger.info('======================[КОНЕЦ ПРОВЕРКИ]======================')
         logger.info(' ')
