@@ -1,0 +1,25 @@
+name: Search Home Bot
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Deploy using SSH
+      uses: appleboy/ssh-action@master # Использование готового действия для SSH-подключения
+      with:
+        host: ${{ secrets.HOST }} # Хост (сервер) для подключения, берется из секретов Github
+        username: ${{ secrets.USERNAME }} # Имя пользователя для SSH, берется из секретов Github
+        key: ${{ secrets.PRIVATE_KEY }} # Приватный ключ для SSH, берется из секретов Github
+        port: 22 # Порт для SSH-подключения (по умолчанию 22)
+        script: |
+          cd /home/bot/search_home_03 # Переход в директорию с проектом на сервере
+          git pull origin main # Вытягивание последних изменений из ветки main
+          git status # Проверка состояния git-репозитория
+          systemctl stop search_home
+          systemctl daemon-reload
+          systemctl start search_home
