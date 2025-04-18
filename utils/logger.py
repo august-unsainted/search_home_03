@@ -15,5 +15,6 @@ logger.addHandler(console_handler)
 
 def log(text: str) -> None:
     logger.info('\t\t' + text.replace('\n', ''))
-    if '\n' in text:
+    while '\n' in text:
         logger.info('')
+        text = text.replace('\n', '')

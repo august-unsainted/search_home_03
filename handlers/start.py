@@ -1,9 +1,9 @@
-from aiogram import Router, F
-from aiogram.filters import CommandStart, Command
+from aiogram import Router
+from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.types import Message
 
-from utils.file_system import write_info, test_groups, get_json
-from utils.filters import filters_actions, get_filters_list, replace_many
+from utils.file_system import get_json
+from utils.filters import filters_actions, get_filters_list, tools_actions
 
 router = Router()
 
@@ -13,36 +13,20 @@ async def cmd_start(message: Message):
     await message.answer(str(message.chat.id))
 
 
-data = {
-    'test': ['🧑‍💻', '‍🧑‍💻 У всех групп были сброшены позиции: {}.'],
-    'delay': ['⏱️', '⏱️ Задержка парсинга была изменена {} сек.!'],
-    'price': ['💰', '💰 Бюджет был изменен {} руб.!']
-}
-
-
-@router.message(Command(commands=['test', 'delay', 'setprice']))
-async def cmds_set_values(message: Message):
-    command, value = replace_many(message.text, ['/', 'set']).split(' ')
-    emoji, onchange = data[command]
-    if value.isdigit():
-        if command == 'test':
-            test_groups(value)
-        else:
-            old_value = get_json('filters')[command]
-            write_info(command, int(value), 'filters')
-            value = f'с {old_value} на {value}'
-        answer = onchange.format(value)
-    else:
-        answer = f'{emoji} Ошибка: не поддерживаемое значение!'
+@router.message(Command(commands=['spam', 'delay', 'price']))
+async def cmds_set_values(message: Message, command: CommandObject):
+    answer = tools_actions(command)
     await message.answer(answer, parse_mode='HTML')
 
 
-@router.message(F.text.startswith(('/list', '/add', '/del', '/ban', '/un',)))
-async def list_cmds(message: Message):
-    if message.text.startswith('/list'):
-        answer = get_filters_list(message.text)
+@router.message(Command(commands=['groups', 'groups-', 'bw', 'bw-', 'ban', 'ban-']))
+async def list_cmds(message: Message, command: CommandObject):
+    if command.args:
+        answer = filters_actions(command)
+    elif command.command.endswith('-'):
+        answer = '<b>!!!!П О Ш Ё Л   Н А Х У Й!!!!</b>'
     else:
-        answer = filters_actions(message.text)
+        answer = get_filters_list(command.command)
     await message.answer(answer, parse_mode='HTML')
 
 

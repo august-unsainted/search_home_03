@@ -3,6 +3,8 @@ import locale
 
 from datetime import datetime, timedelta
 
+from utils.messages import CAPTION
+
 locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 local_tz = pytz.timezone('Asia/Irkutsk')
 
@@ -30,7 +32,7 @@ def format_date(date: int):
     for i in range(2):
         day = (now - timedelta(days=i)).strftime('%d %B')
         if day in date:
-            date = f'{date.replace(day, 'Сегодня' if i == 0 else 'Завтра')}'
+            date = f'{date.replace(day, 'Сегодня' if i == 0 else 'Вчера')}'
     return date
 
 

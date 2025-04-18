@@ -6,3 +6,4 @@ logging.log
 utils/vk_config.v2.json
 handlers/vk_config.v2.json
 vk_config.v2.json
+json/config.json

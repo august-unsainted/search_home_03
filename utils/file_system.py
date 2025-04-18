@@ -4,22 +4,19 @@ import json
 current_file = os.path.abspath(__file__)
 utils_dir = os.path.dirname(current_file)
 project_dir = os.path.dirname(utils_dir)
-path = os.path.join(project_dir, 'last_posts.json')
-filters_path = os.path.join(project_dir, 'filters.json')
+json_dir = os.path.join(project_dir, 'json')
 
 
-def get_json(file_path: str = path) -> dict:
-    if file_path == 'filters':
-        file_path = filters_path
+def get_json(file_path: str = 'last_posts') -> dict:
+    file_path = os.path.join(json_dir, file_path + '.json')
     with open(file_path, 'r', encoding='utf-8') as file:
         return json.load(file)
 
 
-def write_info(key: int | str, value: int = None, file_path: str = path) -> None:
+def write_info(key: int | str, value: int = None, file_path: str = 'last_posts') -> None:
     data = get_json(file_path)
-    if file_path == 'filters':
-        file_path = filters_path
     data[str(key)] = value
+    file_path = os.path.join(json_dir, file_path + '.json')
     if data:
         with open(file_path, 'w', encoding='utf-8') as file:
             json.dump(data, file, indent=4, ensure_ascii=False)
@@ -31,6 +28,7 @@ def del_group(group: int | str) -> bool:
         return False
 
     del data[str(group)]
+    path = os.path.join(json_dir, 'last_posts.json')
     with open(path, 'w', encoding='utf-8') as file:
         json.dump(data, file, indent=4, ensure_ascii=False)
         return True
