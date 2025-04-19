@@ -6,25 +6,31 @@ from aiogram.filters import CommandObject
 from utils.file_system import get_json, write_info, del_group, json_dir, test_groups
 from utils.parsing import get_info, get_group_id
 from utils.string_funcs import find_plural, justify
+from utils.logger import logger
 from utils.messages import *
 
 
 def move_element(need_to_del: bool, data: dict, filters_list: str, element: str):
-    if filters_list == 'ban':
-        element = int(element)
+    try:
+        if filters_list == 'ban':
+            element = int(element)
 
-    is_in_list = element in data[filters_list] if filters_list != 'groups' else str(element) in data
-    actions = ACTIONS['-'] if need_to_del else ACTIONS['+']
+        is_in_list = element in data[filters_list] if filters_list != 'groups' else str(element) in data
+        actions = ACTIONS['-'] if need_to_del else ACTIONS['+']
 
-    if is_in_list and not need_to_del:
-        actions = ACTIONS['=']
-    elif filters_list == 'groups':
-        del_group(element) if need_to_del else write_info(get_group_id(element))
-    else:
-        data[filters_list].remove(element) if need_to_del else data[filters_list].append(element)
+        if is_in_list and not need_to_del:
+            actions = ACTIONS['=']
+        elif filters_list == 'groups':
+            del_group(element) if need_to_del else write_info(get_group_id(element))
+        else:
+            data[filters_list].remove(element) if need_to_del else data[filters_list].append(element)
 
-    list_name = FILTER[filters_list][1]
-    return actions[0], actions[1], list_name.lower()[:-1] + 'х'
+        list_name = FILTER[filters_list][1]
+        return actions[0], actions[1], list_name.lower()[:-1] + 'х'
+    except Exception as err:
+        logger.error(f'Ошибка в фильтрах: {err}')
+        logger.info('')
+        return
 
 
 def filters_actions(command: CommandObject) -> str:
@@ -36,8 +42,16 @@ def filters_actions(command: CommandObject) -> str:
     data = get_json() if filters_list == 'groups' else get_json('filters')
 
     verb, in_list, list_name = '', '', ''
-    for element in elements:
-        verb, in_list, list_name = move_element(need_to_del, data, filters_list, element)
+    flag = False
+    for i in range(len(elements)):
+        if flag:
+            i -= 1
+        answer = move_element(need_to_del, data, filters_list, elements[i])
+        if answer:
+            verb, in_list, list_name = answer
+        else:
+            del elements[i]
+            flag = True
 
     verb += {'bw': 'о', 'groups': 'а'}.get(filters_list, '') if verb != 'уже' else ''
 
@@ -64,15 +78,18 @@ def get_filters_list(filters_list: str) -> str:
     data = get_info(list(get_json().keys())) if filters_list == 'groups' else get_json('filters')[filters_list]
     answer = [f'<b>{emoji} {title} {find_plural(obj.lower())}:</b>']
 
+    if filters_list == "ban":
+        users = get_info(data, 'users')
+        user_ids = [user['id'] for user in users]
+        if len(users) < len(data):
+            does_not_exist = {'first_name': 'Пользователя', 'last_name': 'не существует'}
+            [users.insert(i, does_not_exist) for i in range(len(data)) if data[i] not in user_ids]
+
     for i in range(len(data)):
         formatted_el = justify(data[i] if filters_list != 'groups' else data[i]['id'])
         element = f'<code>{formatted_el}</code>'
         if filters_list == "ban":
-            users = get_info(data, 'users')
-            if i < len(users):
-                element += f" | {users[i]['first_name']} {users[i]['last_name']}"
-            else:
-                element += " | Пользователя не существует"
+            element += f" | {users[i]['first_name']} {users[i]['last_name']}"
         elif filters_list == 'groups':
             element += f" | <a href='https://vk.com/{data[i]['screen_name']}'>{data[i]['name']}</a>"
         answer.append(element)
