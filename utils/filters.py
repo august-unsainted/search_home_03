@@ -1,5 +1,6 @@
 import os
 import json
+import locale
 
 from aiogram.filters import CommandObject
 
