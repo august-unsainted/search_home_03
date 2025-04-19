@@ -100,19 +100,19 @@ def get_filters_list(filters_list: str) -> str:
 
 def tools_actions(command: CommandObject):
     command, value = command.command, command.args
-    emoji, onchange = COMMANDS[command]
+    emoji, onchange, measure = COMMANDS[command]
     if value and value.isdigit():
         if command == 'spam':
             test_groups(value)
         else:
             old_value = get_json('filters')[command]
             write_info(command, int(value), 'filters')
-            value = f'с {old_value} на {value}'
+            value = f'с {old_value} на {value} {measure}'
         answer = onchange.format(value)
     elif command != 'spam' and not value:
         obj = onchange[:onchange.find(' ', 4)]
         old_value = get_json('filters')[command]
-        answer = f'{obj}: {old_value}'
+        answer = f'{obj}: {old_value} {measure}'
     else:
         answer = f'{emoji} Ошибка: не поддерживаемое значение!'
     return answer

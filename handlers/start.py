@@ -24,7 +24,7 @@ async def list_cmds(message: Message, command: CommandObject):
     if command.args:
         answer = filters_actions(command)
     elif command.command.endswith('-'):
-        answer = '<b>!!!!П О Ш Ё Л   Н А Х У Й!!!!</b>'
+        answer = '<b>Введите значения!</b>'
     else:
         answer = get_filters_list(command.command)
     await message.answer(answer, parse_mode='HTML')
