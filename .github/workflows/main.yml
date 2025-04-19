@@ -18,7 +18,8 @@ jobs:
         port: 22 # Порт для SSH-подключения (по умолчанию 22)
         script: |
           cd /home/bot/search_home_03 # Переход в директорию с проектом на сервере
-          git pull origin master # Вытягивание последних изменений из ветки main
+          git restore .
+          git pull origin master # Вытягивание последних изменений из ветки
           git status # Проверка состояния git-репозитория
           systemctl stop search_home
           systemctl daemon-reload
