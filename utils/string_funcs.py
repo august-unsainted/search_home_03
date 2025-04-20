@@ -1,11 +1,11 @@
 import pytz
 import locale
+import humanize
 
 from datetime import datetime, timedelta
 
-from utils.messages import CAPTION
-
 locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
+_t = humanize.i18n.activate("ru_RU")
 local_tz = pytz.timezone('Asia/Irkutsk')
 
 
@@ -27,13 +27,10 @@ def justify(data: int | str) -> str:
 
 
 def format_date(date: int):
-    now = datetime.now(tz=local_tz)
-    date = datetime.fromtimestamp(float(date), local_tz).strftime("%d %B в %H:%M")
-    for i in range(2):
-        day = (now - timedelta(days=i)).strftime('%d %B')
-        if day in date:
-            date = f'{date.replace(day, 'Сегодня' if i == 0 else 'Вчера')}'
-    return date
+    date = datetime.fromtimestamp(float(date), local_tz)
+    time = date.strftime(" в %H:%M")
+    day_name = humanize.naturalday(date, format='%d %B').capitalize() + time
+    return day_name
 
 
 def find_plural(obj: str):

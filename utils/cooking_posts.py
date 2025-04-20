@@ -7,7 +7,7 @@ from utils.ai import send_ai_request
 from utils.string_funcs import *
 from utils.file_system import write_info, get_json
 from utils.parsing import get_info, get_posts
-from utils.messages import REASON, ERROR
+from utils.messages import REASON, ERROR, CAPTION
 
 from config import TG_MAIN, TG_TRASH
 
@@ -154,7 +154,9 @@ async def handle_posts(bot: Bot):
         logger.info('Проверяю последние посты в группе:')
         log(f'{justify(group)} — ID группы.')
         try:
-            first_post = get_posts(group, 1)[0]
+            first_posts = get_posts(group, 2)
+            first_post = first_posts[int(first_posts[0].get('is_pinned') == 1)]
+
             log(f'{justify(first_post["id"])} — ID последнего поста.')
 
             if last_post is None:
