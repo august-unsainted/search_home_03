@@ -1,8 +1,6 @@
 import os
 import json
 
-from utils.parsing import get_posts
-
 current_file = os.path.abspath(__file__)
 utils_dir = os.path.dirname(current_file)
 project_dir = os.path.dirname(utils_dir)
@@ -34,16 +32,3 @@ def del_group(group: int | str) -> bool:
     with open(path, 'w', encoding='utf-8') as file:
         json.dump(data, file, indent=4, ensure_ascii=False)
         return True
-
-
-def test_groups(count: str) -> None:
-    count = int(count)
-    data = get_json()
-    for group in data:
-        if group == '230000411':
-            continue
-        last_post = get_posts(group, count)[-1]['id']
-        data_post = data[group] - count
-        if data_post < last_post:
-            last_post = data_post
-        write_info(group, last_post)

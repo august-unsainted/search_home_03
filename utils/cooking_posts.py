@@ -48,17 +48,17 @@ async def receive_last_posts(last_post: dict) -> list:
         log('Ошибка! Перезаписываю ID поста на актуальный.\n')
         return []
     else:
-        posts = get_posts(group, count)
+        posts = get_posts(group, count + 1)[::-1]
         if len(posts) == 1:
             new_posts = posts
         else:
             new_posts = []
             for post in posts:
-                if post['id'] == last_data:
-                    break
+                if post['id'] <= last_data or post.get('is_pinned', False):
+                    continue
                 new_posts.append(post)
         log(f'{justify(len(new_posts))} — кол-во новых постов.')
-        return new_posts[::-1]
+        return new_posts
 
 
 async def check_text(post: dict, bot: Bot) -> bool:

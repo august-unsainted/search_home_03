@@ -4,8 +4,8 @@ import locale
 
 from aiogram.filters import CommandObject
 
-from utils.file_system import get_json, write_info, del_group, json_dir, test_groups
-from utils.parsing import get_info, get_group_id
+from utils.file_system import get_json, write_info, del_group, json_dir
+from utils.parsing import get_info, get_group_id, get_posts
 from utils.string_funcs import find_plural, justify
 from utils.logger import logger
 from utils.messages import *
@@ -97,6 +97,24 @@ def get_filters_list(filters_list: str) -> str:
     if len(answer) == 1:
         return FILTER['empty'].format(answer)
     return '\n'.join(answer)
+
+
+def test_groups(count: str) -> None:
+    count = int(count)
+    data = get_json()
+    for group in data:
+        # if group == '230000411':
+        #     continue
+
+        posts = get_posts(group, count + 2)
+        print('Посты:', [post['id'] for post in posts])
+        posts = posts[1:] if posts[0].get('is_pinned', False) else posts[:-1]
+        print('Посты после удаления закрепа:', [post['id'] for post in posts])
+        last_post = posts[-1]['id']
+        data_post = data[group] - count
+        if data_post < last_post:
+            last_post = data_post
+        write_info(group, last_post)
 
 
 def tools_actions(command: CommandObject):
