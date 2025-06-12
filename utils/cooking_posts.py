@@ -1,3 +1,6 @@
+import asyncio
+
+from aiogram.exceptions import TelegramRetryAfter
 from aiogram.types import InputMediaPhoto
 from aiogram import Bot
 from vk_api import ApiError
@@ -24,14 +27,20 @@ def get_caption(post: dict, group_name: str, description: str):
     return caption
 
 
-async def skip_message(post: dict, bot: Bot, reason: str) -> None:
+async def skip_message(post: dict, bot: Bot, reason: str, send: bool = False) -> None:
     log(reason[reason.find(' ') + 1:])
     write_info(-post['owner_id'], post['id'])
     log(f'Сохранил ID этого поста — {post['id']}.')
 
-    message_text = get_caption(post, get_info(-post['owner_id'])[0]['name'], reason)
-    await bot.send_message(chat_id=TG_TRASH, text=message_text, parse_mode='HTML', disable_web_page_preview=True)
-    log('Отправил готовое сообщение в Telegram.\n')
+    if send:
+        message_text = get_caption(post, get_info(-post['owner_id'])[0]['name'], reason)
+        try:
+            await bot.send_message(chat_id=TG_TRASH, text=message_text, parse_mode='HTML', disable_web_page_preview=True)
+            log('Отправил готовое сообщение в Telegram.\n')
+        except TelegramRetryAfter as e:
+            await asyncio.sleep(e.retry_after)
+            await bot.send_message(chat_id=TG_TRASH, text=message_text, parse_mode='HTML', disable_web_page_preview=True)
+            log('Отправил готовое сообщение в Telegram.\n')
 
 
 async def receive_last_posts(last_post: dict) -> list:
@@ -94,9 +103,22 @@ async def check_answer(answer: str, post: dict, bot: Bot) -> bool:
         reason = REASON['not_rent']
 
     if reason:
-        await skip_message(post, bot, reason)
+        await skip_message(post, bot, reason, True)
         return True
     return False
+
+
+async def send_mess(media_group, chat_id, bot, caption_mess, caption):
+    try:
+        if media_group:
+            await bot.send_media_group(chat_id=chat_id, media=media_group)
+            if caption_mess:
+                await bot.send_message(chat_id=chat_id, text=caption_mess, parse_mode='HTML')
+        else:
+            await bot.send_message(chat_id=chat_id, text=caption, parse_mode='HTML')
+    except TelegramRetryAfter as e:
+        await asyncio.sleep(e.retry_after)
+        await send_mess(media_group, chat_id, bot, caption_mess, caption)
 
 
 async def send_post(answer: str, post: dict, bot: Bot, chat_id: str) -> None:
@@ -116,12 +138,7 @@ async def send_post(answer: str, post: dict, bot: Bot, chat_id: str) -> None:
                 InputMediaPhoto(media=attachments[i]['photo']['orig_photo']['url'], caption=caption,
                                 parse_mode='HTML'))
 
-    if media_group:
-        await bot.send_media_group(chat_id=chat_id, media=media_group)
-        if caption_mess:
-            await bot.send_message(chat_id=chat_id, text=caption_mess, parse_mode='HTML')
-    else:
-        await bot.send_message(chat_id=chat_id, text=caption, parse_mode='HTML')
+    await send_mess(media_group, chat_id, bot, caption_mess, caption)
 
 
 async def handle_post(post: dict, bot: Bot) -> None:
