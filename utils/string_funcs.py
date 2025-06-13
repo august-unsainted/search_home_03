@@ -28,9 +28,9 @@ def justify(data: int | str) -> str:
 
 def format_date(date: int):
     date = datetime.fromtimestamp(float(date), local_tz)
-    time = date.strftime(" в %H:%M")
-    day_name = humanize.naturalday(date, format='%d %B').capitalize() + time
-    return day_name
+    time = date.strftime("%H:%M")
+    day = humanize.naturalday(date, format='%d %B').capitalize()
+    return f'{day} в {time}'
 
 
 def find_plural(obj: str):
