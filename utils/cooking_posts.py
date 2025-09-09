@@ -22,7 +22,8 @@ def get_caption(post: dict, group_name: str, description: str):
         user_info = f'👤 {user['first_name']} {user['last_name']} | <code>{post["from_id"]}</code>\n'
     else:
         user_info = ''
-    caption = CAPTION.format(description=description, group_name=group_name, group_id=-post['owner_id'], date=format_date(post['date']),
+    caption = CAPTION.format(description=description, group_name=group_name, group_id=-post['owner_id'],
+                             date=format_date(post['date']),
                              post_id=post['id'], text=post['text'], user_info=user_info)
     return caption
 
@@ -35,11 +36,13 @@ async def skip_message(post: dict, bot: Bot, reason: str, send: bool = False) ->
     if send:
         message_text = get_caption(post, get_info(-post['owner_id'])[0]['name'], reason)
         try:
-            await bot.send_message(chat_id=TG_TRASH, text=message_text, parse_mode='HTML', disable_web_page_preview=True)
+            await bot.send_message(chat_id=TG_TRASH, text=message_text, parse_mode='HTML',
+                                   disable_web_page_preview=True)
             log('Отправил готовое сообщение в Telegram.\n')
         except TelegramRetryAfter as e:
             await asyncio.sleep(e.retry_after)
-            await bot.send_message(chat_id=TG_TRASH, text=message_text, parse_mode='HTML', disable_web_page_preview=True)
+            await bot.send_message(chat_id=TG_TRASH, text=message_text, parse_mode='HTML',
+                                   disable_web_page_preview=True)
             log('Отправил готовое сообщение в Telegram.\n')
 
 
@@ -110,12 +113,13 @@ async def check_answer(answer: str, post: dict, bot: Bot) -> bool:
 
 async def send_mess(media_group, chat_id, bot, caption_mess, caption):
     try:
+        args = {'chat_id': chat_id, 'parse_mode': 'HTML', 'disable_web_page_preview': True}
         if media_group:
             await bot.send_media_group(chat_id=chat_id, media=media_group)
             if caption_mess:
-                await bot.send_message(chat_id=chat_id, text=caption_mess, parse_mode='HTML')
+                await bot.send_message(text=caption_mess, **args)
         else:
-            await bot.send_message(chat_id=chat_id, text=caption, parse_mode='HTML')
+            await bot.send_message(text=caption, **args)
     except TelegramRetryAfter as e:
         await asyncio.sleep(e.retry_after)
         await send_mess(media_group, chat_id, bot, caption_mess, caption)
@@ -156,10 +160,9 @@ async def handle_post(post: dict, bot: Bot) -> None:
     if await check_answer(answer, post, bot):
         return
 
-    chat_id = TG_MAIN if find_string(answer, ['🟢', '🟠']) else TG_TRASH
-    await bot.send_chat_action(chat_id=chat_id, action="typing")
+    await bot.send_chat_action(chat_id=TG_MAIN, action="typing")
 
-    await send_post(answer, post, bot, chat_id)
+    await send_post(answer, post, bot, TG_MAIN)
     log('Отправил готовое сообщение в Telegram.')
     write_info(-post['owner_id'], post['id'])
     log('Сохранил ID этого поста. Готово!\n')
@@ -201,4 +204,3 @@ async def handle_posts(bot: Bot):
     logger.info(f'Все группы проверены. Проверю снова через {get_json("filters")['delay']} сек. Сплю :)')
     logger.info('======================[КОНЕЦ ПРОВЕРКИ]======================')
     log(' \n')
-

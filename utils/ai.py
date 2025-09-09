@@ -1,5 +1,5 @@
 import asyncio
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError
 
 from config import AI_MODEL, AI_PROMPT
 from utils.file_system import get_json, write_info
@@ -25,7 +25,7 @@ async def send_ai_request(text: str) -> str | None:
                 )
                 answer = completion.choices[0].message.content
                 return answer
-            except TypeError:
+            except RateLimitError:
                 log(f'Ошибка у ключа №{i+1}: закончились запросы, пробую следующий.')
                 api_keys = api_keys[:i] + api_keys[i + 1:] + [api_keys[i]]
                 write_info('API_KEYS', api_keys, 'config')
