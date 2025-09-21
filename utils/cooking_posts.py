@@ -154,7 +154,9 @@ async def handle_post(post: dict, bot: Bot) -> None:
         return
 
     log('Текст поста отправляется AI, ожидаю ответа...')
-    answer = await send_ai_request(post['text'])
+    answer = None
+    while answer is None:
+        answer = await send_ai_request(post['text'])
     log('Ответ от AI был получен.')
 
     if await check_answer(answer, post, bot):
